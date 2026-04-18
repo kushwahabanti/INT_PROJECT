@@ -18,12 +18,27 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+const cors = require('cors');
+
 const app = express();
 const server = http.createServer(app);
+
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+
 const io = new Server(server, {
-  cors: { origin: process.env.CORS_ORIGIN || '*' },
+  cors: {
+    origin: CORS_ORIGIN,
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
   maxHttpBufferSize: 5e6
 });
+
+// ─── CORS for HTTP requests ──────────────────────────────────────
+app.use(cors({
+  origin: CORS_ORIGIN,
+  credentials: true
+}));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
