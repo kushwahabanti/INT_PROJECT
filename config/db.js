@@ -1,20 +1,21 @@
 const mongoose = require('mongoose');
 
 async function connectDB(retries = 5, delay = 3000) {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/codecollab';
+  const uri = process.env.MONGODB_URI;
+
+  if (!uri) {
+    console.error("❌ MONGODB_URI not found");
+    process.exit(1);
+  }
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await mongoose.connect(uri);
-      console.log(`  ✅ MongoDB connected: ${mongoose.connection.host}`);
+      console.log(`✅ MongoDB connected`);
       return true;
     } catch (err) {
-      console.error(`  ❌ MongoDB connection attempt ${attempt}/${retries} failed: ${err.message}`);
-      if (attempt === retries) {
-        console.error('     Make sure MongoDB is running or set MONGODB_URI in .env');
-        process.exit(1);
-      }
-      console.log(`     Retrying in ${delay / 1000}s...`);
+      console.error(`❌ MongoDB attempt ${attempt}/${retries}: ${err.message}`);
+      if (attempt === retries) process.exit(1);
       await new Promise(r => setTimeout(r, delay));
     }
   }
