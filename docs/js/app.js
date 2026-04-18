@@ -1,6 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════
-   CodeCollab - Main Application Logic v2
+   CodeCollab - Main Application Logic v2 (Fixed)
    ═══════════════════════════════════════════════════════════════ */
+const API_URL = "https://int-project-92ou.onrender.com";
 
 (() => {
   'use strict';
@@ -23,6 +24,7 @@
     currentSnapshotIndex: 0,
     selectedRating: 0,
     reviewRoomId: null,
+    completedRecordings: [], // FIX #3: moved from DOM element to state
     cursorColors: [
       '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4',
       '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
@@ -31,7 +33,7 @@
   };
 
   // ─── Initialize Socket ─────────────────────────────────────
-  const socket = io({
+  const socket = io("https://int-project-92ou.onrender.com", {
     auth: { token: localStorage.getItem('codecollab_token') }
   });
   state.socket = socket;
@@ -53,6 +55,18 @@
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
+  }
+
+  // FIX #1: Consistent API URL helper so all fetches use API_URL
+  function apiFetch(path, options = {}) {
+    const url = path.startsWith('http') ? path : `${API_URL}${path}`;
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(),
+        ...(options.headers || {})
+      }
+    });
   }
 
   function showScreen(screen) {
@@ -242,9 +256,9 @@
       loginBtn.querySelector('span').textContent = 'Signing in...';
 
       try {
-        const res = await fetch('/api/login', {
+        // FIX #1: use API_URL consistently
+        const res = await apiFetch('/api/login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password })
         });
         const data = await res.json();
@@ -282,9 +296,9 @@
       regBtn.querySelector('span').textContent = 'Creating account...';
 
       try {
-        const res = await fetch('/api/register', {
+        // FIX #1: use API_URL consistently
+        const res = await apiFetch('/api/register', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, email, password, role: selectedRole })
         });
         const data = await res.json();
@@ -319,7 +333,8 @@
     const grid = $('#room-grid');
     showLoading(grid);
 
-    fetch('/api/rooms', { headers: getAuthHeaders() })
+    // FIX #1: use apiFetch
+    apiFetch('/api/rooms')
       .then(r => r.json())
       .then(rooms => {
         state.rooms = rooms;
@@ -441,13 +456,10 @@
         return;
       }
 
-      fetch('/api/rooms', {
+      // FIX #1: use apiFetch
+      apiFetch('/api/rooms', {
         method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          name,
-          language: selectedLang
-        })
+        body: JSON.stringify({ name, language: selectedLang })
       })
         .then(r => r.json())
         .then(room => {
@@ -461,7 +473,8 @@
 
   // ─── JOIN ROOM ──────────────────────────────────────────────
   function joinRoom(roomId) {
-    fetch(`/api/rooms/${roomId}`, { headers: getAuthHeaders() })
+    // FIX #1: use apiFetch
+    apiFetch(`/api/rooms/${roomId}`)
       .then(r => r.json())
       .then(room => {
         state.currentRoom = room;
@@ -491,6 +504,16 @@
 
   function initEditor(room) {
     const editorEl = $('#code-editor');
+
+    // FIX #7: properly destroy previous CodeMirror instance before reinitializing
+    if (state.editor) {
+      try {
+        state.editor.toTextArea();
+      } catch (e) {
+        // ignore if already destroyed
+      }
+      state.editor = null;
+    }
     editorEl.innerHTML = '';
 
     state.editor = CodeMirror(editorEl, {
@@ -630,6 +653,7 @@
     `).join('');
   }
 
+  // FIX #6: use actual contribution data when available, fall back to equal split
   function renderContributions() {
     const tracks = $('#contrib-tracks');
     if (!state.participants.length) {
@@ -637,10 +661,15 @@
       return;
     }
 
-    const equal = 100 / state.participants.length;
+    // Try to use real contribution percentages if available
+    const hasContribData = state.participants.some(p => p.contributionPct !== undefined);
+
     tracks.innerHTML = state.participants.map(p => {
       const color = getCursorColor(p.id);
-      return `<div class="contrib-track" style="width:${equal}%;background:${color}" title="${escapeHtml(p.name)}: ${Math.round(equal)}%"></div>`;
+      const pct = hasContribData
+        ? (p.contributionPct || 0)
+        : (100 / state.participants.length);
+      return `<div class="contrib-track" style="width:${pct}%;background:${color}" title="${escapeHtml(p.name)}: ${Math.round(pct)}%"></div>`;
     }).join('');
   }
 
@@ -828,9 +857,9 @@
       outputContent.textContent = 'Running code...';
 
       try {
-        const res = await fetch('/api/run', {
+        // FIX #1: use apiFetch
+        const res = await apiFetch('/api/run', {
           method: 'POST',
-          headers: getAuthHeaders(),
           body: JSON.stringify({
             code: state.editor.getValue(),
             language: state.currentRoom.language
@@ -892,7 +921,8 @@
     const recordingsList = $('#recordings-list');
     showLoading(recordingsList);
 
-    fetch('/api/recordings', { headers: getAuthHeaders() })
+    // FIX #1: use apiFetch
+    apiFetch('/api/recordings')
       .then(r => r.json())
       .then(allRecordings => {
         const completed = allRecordings.filter(r => r.endTime && r.snapshots && r.snapshots.length > 1);
@@ -907,6 +937,9 @@
           `;
           return;
         }
+
+        // FIX #3: store in state instead of on DOM element
+        state.completedRecordings = completed;
 
         recordingsList.innerHTML = completed.map(rec => `
           <div class="recording-card" data-room-id="${rec.roomId}" data-recording-id="${rec._id}">
@@ -936,23 +969,18 @@
             </div>
           </div>
         `).join('');
-
-        // Store for later
-        recordingsList._completedRecordings = completed;
       })
       .catch(() => {
         recordingsList.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Failed to load recordings</h3></div>`;
       });
   }
 
-  // Event delegation for recordings list
+  // FIX #3: Event delegation reads from state instead of DOM element
   $('#recordings-list').addEventListener('click', (e) => {
     const card = e.target.closest('.recording-card');
     if (!card) return;
     const recId = card.dataset.recordingId;
-    const list = $('#recordings-list');
-    const completed = list._completedRecordings || [];
-    const rec = completed.find(r => String(r._id) === String(recId));
+    const rec = state.completedRecordings.find(r => String(r._id) === String(recId));
     if (rec) openRecordingPlayer(rec);
   });
 
@@ -967,7 +995,18 @@
     $('#recording-duration').textContent = `Duration: ${formatDuration(recording.duration)}`;
 
     const editorEl = $('#recording-editor');
+
+    // FIX #7: destroy old recordingEditor instance before reinitializing
+    if (state.recordingEditor) {
+      try {
+        state.recordingEditor.toTextArea();
+      } catch (e) {
+        // ignore
+      }
+      state.recordingEditor = null;
+    }
     editorEl.innerHTML = '';
+
     state.recordingEditor = CodeMirror(editorEl, {
       value: recording.snapshots[0]?.code || '',
       mode: getLangMode(recording.language || 'javascript'),
@@ -1153,7 +1192,8 @@
     const container = $('#review-container');
     showLoading(container);
 
-    fetch('/api/rooms', { headers: getAuthHeaders() })
+    // FIX #1: use apiFetch
+    apiFetch('/api/rooms')
       .then(r => r.json())
       .then(rooms => {
         if (rooms.length === 0) {
@@ -1224,7 +1264,8 @@
   function openReviewModal(roomId) {
     state.reviewRoomId = roomId;
 
-    fetch(`/api/rooms/${roomId}`, { headers: getAuthHeaders() })
+    // FIX #1: use apiFetch
+    apiFetch(`/api/rooms/${roomId}`)
       .then(r => r.json())
       .then(room => {
         const modal = $('#review-modal');
@@ -1233,7 +1274,18 @@
         $('#review-modal-title').textContent = `Review: ${room.name}`;
 
         const editorEl = $('#review-editor');
+
+        // FIX #7: destroy old reviewEditor before reinitializing
+        if (state.reviewEditor) {
+          try {
+            state.reviewEditor.toTextArea();
+          } catch (e) {
+            // ignore
+          }
+          state.reviewEditor = null;
+        }
         editorEl.innerHTML = '';
+
         state.reviewEditor = CodeMirror(editorEl, {
           value: room.code || '',
           mode: getLangMode(room.language),
@@ -1308,7 +1360,7 @@
       });
     });
 
-    // Submit feedback
+    // FIX #5: Submit feedback and re-fetch using the same room endpoint for consistency
     $('#submit-feedback-btn').addEventListener('click', () => {
       const content = $('#feedback-text').value.trim();
       if (!content) {
@@ -1316,9 +1368,8 @@
         return;
       }
 
-      fetch(`/api/rooms/${state.reviewRoomId}/feedback`, {
+      apiFetch(`/api/rooms/${state.reviewRoomId}/feedback`, {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           content,
           type: 'general',
@@ -1326,15 +1377,16 @@
         })
       })
         .then(r => r.json())
-        .then(fb => {
+        .then(() => {
           showToast('Feedback submitted!', 'success');
           $('#feedback-text').value = '';
           state.selectedRating = 0;
           $$('.rating-input .star').forEach(s => s.classList.remove('active'));
 
-          fetch(`/api/rooms/${state.reviewRoomId}/feedback`, { headers: getAuthHeaders() })
+          // FIX #5: re-fetch the full room to stay consistent with openReviewModal
+          apiFetch(`/api/rooms/${state.reviewRoomId}`)
             .then(r => r.json())
-            .then(feedbackList => renderExistingFeedback(feedbackList))
+            .then(room => renderExistingFeedback(room.feedback || []))
             .catch(() => {});
         })
         .catch(() => showToast('Failed to submit feedback', 'error'));
@@ -1347,14 +1399,15 @@
       localStorage.removeItem('codecollab_token');
       state.currentUser = null;
       state.currentRoom = null;
+      state.completedRecordings = [];
       document.body.classList.remove('role-instructor');
-      
+
       // Explicitly wipe the fields on logout as well
       $('#login-form').reset();
       $('#register-form').reset();
       if ($('#login-email')) $('#login-email').value = '';
       if ($('#login-password')) $('#login-password').value = '';
-      
+
       showScreen(loginScreen);
       showToast('Logged out successfully', 'info');
     });
@@ -1409,9 +1462,9 @@
             const base64Avatar = canvas.toDataURL('image/jpeg', 0.8);
 
             try {
-              const res = await fetch('/api/users/avatar', {
+              // FIX #1: use apiFetch
+              const res = await apiFetch('/api/users/avatar', {
                 method: 'PUT',
-                headers: getAuthHeaders(),
                 body: JSON.stringify({ avatar: base64Avatar })
               });
 
@@ -1458,12 +1511,17 @@
     if (!state.currentUser) return;
 
     $('#profile-name').textContent = state.currentUser.name;
-    $('#profile-email').textContent = state.currentUser.email || (state.currentUser.name.toLowerCase().replace(' ', '.') + '@codecollab.com');
+
+    // FIX #4: use regex to replace all spaces in email fallback
+    const emailFallback = state.currentUser.name.toLowerCase().replace(/\s+/g, '.') + '@codecollab.com';
+    $('#profile-email').textContent = state.currentUser.email || emailFallback;
+
     $('#profile-role').textContent = state.currentUser.role;
     renderAvatar('#profile-avatar', state.currentUser.avatar);
 
     try {
-      const res = await fetch('/api/rooms', { headers: getAuthHeaders() });
+      // FIX #1: use apiFetch
+      const res = await apiFetch('/api/rooms');
       const rooms = await res.json();
 
       const managed = rooms.filter(r => r.createdBy === state.currentUser.id);
@@ -1489,9 +1547,8 @@
     const token = localStorage.getItem('codecollab_token');
     if (token) {
       try {
-        const res = await fetch('/api/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // FIX #1: use apiFetch
+        const res = await apiFetch('/api/me');
         if (res.ok) {
           const data = await res.json();
           state.currentUser = data.user;
