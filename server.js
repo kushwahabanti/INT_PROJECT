@@ -23,22 +23,22 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || false;
+const corsOptions = CORS_ORIGIN
+  ? { origin: CORS_ORIGIN, credentials: true }
+  : { origin: true, credentials: false };
 
 const io = new Server(server, {
   cors: {
-    origin: CORS_ORIGIN,
+    origin: corsOptions.origin,
     methods: ['GET', 'POST'],
-    credentials: true
+    credentials: corsOptions.credentials
   },
   maxHttpBufferSize: 5e6
 });
 
 // ─── CORS for HTTP requests ──────────────────────────────────────
-app.use(cors({
-  origin: CORS_ORIGIN,
-  credentials: true
-}));
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
