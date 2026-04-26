@@ -41,7 +41,7 @@ const io = new Server(server, {
 app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'docs')));
 
 // ─── Rate Limiting ───────────────────────────────────────────────
 const authLimiter = rateLimit({
