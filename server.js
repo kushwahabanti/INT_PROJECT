@@ -525,37 +525,140 @@ app.get('/api/me', async (req, res) => {
   }
 });
 
-// Run Code - Secured via Piston API
+// // Run Code - Secured via Piston API
+// app.post('/api/run', authMiddleware, async (req, res) => {
+//   const { code, language } = req.body;
+//   if (!code) return res.status(400).json({ error: 'No code provided' });
+
+//   // Quick fix - simple execution for demo
+//   if (language === 'javascript') {
+//     try {
+//       let output = '';
+//       const log = console.log;
+//       console.log = (...args) => { output += args.join(' ') + '\n'; };
+      
+//       eval(code);
+      
+//       console.log = log;
+//       return res.json({ output: output || 'Code executed successfully', error: '' });
+//     } catch (err) {
+//       return res.json({ output: '', error: err.message });
+//     }
+//   }
+  
+//   if (language === 'python') {
+//     return res.json({ 
+//       output: '', 
+//       error: 'Python execution not available in demo mode. Feature works with external API.' 
+//     });
+//   }
+
+//   res.status(400).json({ error: 'Language not supported' });
+// });
+
+
+
+
 app.post('/api/run', authMiddleware, async (req, res) => {
   const { code, language } = req.body;
-  if (!code) return res.status(400).json({ error: 'No code provided' });
 
-  // Quick fix - simple execution for demo
-  if (language === 'javascript') {
-    try {
-      let output = '';
-      const log = console.log;
-      console.log = (...args) => { output += args.join(' ') + '\n'; };
-      
-      eval(code);
-      
-      console.log = log;
-      return res.json({ output: output || 'Code executed successfully', error: '' });
-    } catch (err) {
-      return res.json({ output: '', error: err.message });
-    }
+  // Input validation
+  if (!code) {
+    return res.status(400).json({ error: 'No code provided' });
   }
-  
-  if (language === 'python') {
-    return res.json({ 
-      output: '', 
-      error: 'Python execution not available in demo mode. Feature works with external API.' 
+
+  if (code.length > 50000) {
+    return res.status(413).json({ error: 'Code too large (limit 50KB)' });
+  }
+
+  // HTML/CSS preview
+  if (language === 'html' || language === 'css') {
+    return res.json({
+      output: code,
+      error: '',
+      type: 'preview'
     });
   }
 
-  res.status(400).json({ error: 'Language not supported' });
-});
+  const langMap = {
+    javascript: { language: "nodejs", versionIndex: "4" },
+    python: { language: "python3", versionIndex: "3" },
+    java: { language: "java", versionIndex: "4" },
+    cpp: { language: "cpp17", versionIndex: "0" },
+    c: { language: "c", versionIndex: "5" }
+  };
 
+  if (!langMap[language]) {
+    return res.status(400).json({ error: 'Language not supported' });
+  }
+
+  if (!process.env.JDOODLE_CLIENT_ID || !process.env.JDOODLE_CLIENT_SECRET) {
+    return res.status(500).json({ error: 'JDoodle API not configured' });
+  }
+
+  let timeout;
+
+  try {
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 15000);
+
+    const response = await fetch("https://api.jdoodle.com/v1/execute", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        clientId: process.env.JDOODLE_CLIENT_ID,
+        clientSecret: process.env.JDOODLE_CLIENT_SECRET,
+        script: code,
+        ...langMap[language]
+      })
+    });
+
+    // 🔒 Safe parse (no crash)
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = {};
+    }
+
+    // ❗ HTTP error handling
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return res.status(502).json({ error: 'JDoodle auth failed' });
+      }
+      if (response.status === 429) {
+        return res.status(503).json({ error: 'JDoodle quota exceeded' });
+      }
+      return res.status(502).json({ error: 'Execution failed (upstream)' });
+    }
+
+    // ❗ 200 but error inside body
+    if (data.error) {
+      return res.status(502).json({ error: data.error });
+    }
+
+    return res.json({
+      output: data.output || '',
+      error: ''
+    });
+
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      return res.status(504).json({ error: 'Execution timeout' });
+    }
+
+    console.error(err);
+    return res.status(502).json({ error: 'Execution service unavailable' });
+
+  } finally {
+    // ✅ no memory leak
+    if (timeout) clearTimeout(timeout);
+  }
+});
 // ═══════════════════════════════════════════════════════════════
 //  Socket.io Real-Time Events (with JWT auth)
 // ═══════════════════════════════════════════════════════════════
