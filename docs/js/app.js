@@ -1,12 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════
    CodeCollab - Main Application Logic v2 (Fixed)
    ═══════════════════════════════════════════════════════════════ */
-const API_URL = "https://int-project-92ou.onrender.com";
+// const API_URL = "https://int-project-92ou.onrender.com";
+const API_URL = "http://localhost:3000";
 
 (() => {
   'use strict';
 
-  // ─── State ──────────────────────────────────────────────────
+  // ─── State ───────────────────────────────────────────  ───────
   const state = {
     currentUser: null,
     currentRoom: null,
@@ -33,7 +34,8 @@ const API_URL = "https://int-project-92ou.onrender.com";
   };
 
   // ─── Initialize Socket ─────────────────────────────────────
-  const socket = io("https://int-project-92ou.onrender.com", {
+  // const socket = io("https://int-project-92ou.onrender.com", {
+  const socket = io("http://localhost:3000", {
     auth: { token: localStorage.getItem('codecollab_token') }
   });
   state.socket = socket;
@@ -367,14 +369,26 @@ const API_URL = "https://int-project-92ou.onrender.com";
       return;
     }
 
+    const canDelete = (room) => {
+      if (!state.currentUser) return false;
+      return room.createdBy === state.currentUser.id || state.currentUser.role === 'instructor';
+    };
+
     grid.innerHTML = rooms.map(room => `
       <div class="room-card" data-room-id="${escapeHtml(room.id)}">
         <div class="room-card-header">
           <span class="room-card-title">${escapeHtml(room.name)}</span>
-          <span class="room-card-status ${room.isActive ? 'active' : 'ended'}">
-            <span class="status-dot ${room.isActive ? 'active' : 'ended'}"></span>
-            ${room.isActive ? 'Live' : 'Ended'}
-          </span>
+          <div class="room-card-header-right">
+            <span class="room-card-status ${room.isActive ? 'active' : 'ended'}">
+              <span class="status-dot ${room.isActive ? 'active' : 'ended'}"></span>
+              ${room.isActive ? 'Live' : 'Ended'}
+            </span>
+            ${canDelete(room) ? `
+              <button class="btn-delete-room" data-room-id="${escapeHtml(room.id)}" data-room-name="${escapeHtml(room.name)}" title="Delete Room">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>
+            ` : ''}
+          </div>
         </div>
         <div class="room-card-meta">
           <span class="room-lang-tag">${getLangIcon(room.language)} ${escapeHtml(room.language)}</span>
@@ -401,8 +415,34 @@ const API_URL = "https://int-project-92ou.onrender.com";
     `).join('');
   }
 
+  // Delete room
+  async function deleteRoom(roomId, roomName) {
+    if (!confirm(`Are you sure you want to delete "${roomName}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      const res = await apiFetch(`/api/rooms/${roomId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || 'Failed to delete room', 'error');
+        return;
+      }
+      showToast(`Room "${roomName}" deleted`, 'success');
+      loadDashboard();
+    } catch (err) {
+      showToast('Failed to delete room', 'error');
+    }
+  }
+
   // Event delegation for room grid (avoids memory leaks)
   $('#room-grid').addEventListener('click', (e) => {
+    // Handle delete button click
+    const deleteBtn = e.target.closest('.btn-delete-room');
+    if (deleteBtn) {
+      e.stopPropagation();
+      deleteRoom(deleteBtn.dataset.roomId, deleteBtn.dataset.roomName);
+      return;
+    }
     const card = e.target.closest('.room-card');
     if (card) joinRoom(card.dataset.roomId);
   });
@@ -632,6 +672,26 @@ const API_URL = "https://int-project-92ou.onrender.com";
   });
 
   socket.on('room:created', () => {
+    if (dashboardScreen.classList.contains('active')) {
+      loadDashboard();
+    }
+  });
+
+  socket.on('room:deleted', ({ roomId }) => {
+    // If we're inside the deleted room, go back to dashboard
+    if (state.currentRoom && state.currentRoom.id === roomId) {
+      state.currentRoom = null;
+      state.participants = [];
+      state.versions = [];
+      showScreen(dashboardScreen);
+      showToast('This room has been deleted', 'info');
+    }
+    if (dashboardScreen.classList.contains('active')) {
+      loadDashboard();
+    }
+  });
+
+  socket.on('rooms:update', () => {
     if (dashboardScreen.classList.contains('active')) {
       loadDashboard();
     }

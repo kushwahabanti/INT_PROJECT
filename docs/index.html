@@ -226,7 +226,7 @@
           <h1 class="welcome-title">Welcome back 👋</h1>
           <p class="welcome-sub">Jump into a room and start coding with your team in real-time.</p>
         </div>
-        <button class="btn btn-primary instructor-only" id="create-room-btn">
+        <button class="btn btn-primary" id="create-room-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Create Room
         </button>
@@ -320,27 +320,27 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div class="modal-body" style="padding: 2rem;">
-          <div class="profile-header" style="display: flex; align-items: center; gap: 2rem; margin-bottom: 2.5rem;">
-            <label class="profile-avatar-wrapper" for="avatar-upload" style="position: relative; width: 100px; height: 100px; cursor: pointer; display: block;" title="Click to change profile picture">
-              <div class="profile-avatar" id="profile-avatar" style="width: 100%; height: 100%; border-radius: 50%; font-size: 3.5rem; display: flex; align-items: center; justify-content: center; background: rgba(108, 99, 255, 0.2); border: 2px solid var(--accent-primary); box-shadow: 0 0 20px var(--accent-primary-glow); overflow: hidden;">
+        <div class="modal-body profile-modal-body">
+          <div class="profile-header">
+            <label class="profile-avatar-wrapper" for="avatar-upload" title="Click to change profile picture">
+              <div class="profile-avatar" id="profile-avatar">
                 👤
               </div>
-              <div class="avatar-edit-overlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.5); border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;">
+              <div class="avatar-edit-overlay">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               </div>
               <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
             </label>
             <div class="profile-details">
-              <h2 id="profile-name" style="margin-bottom: 0.2rem; font-size: 2rem;">User Name</h2>
-              <p id="profile-email" style="color: var(--text-secondary); margin-bottom: 0.8rem; font-size: 1rem;">user@example.com</p>
-              <span id="profile-role" class="user-role-badge" style="padding: 4px 12px; font-size: 0.8rem;">student</span>
+              <h2 id="profile-name">User Name</h2>
+              <p id="profile-email">user@example.com</p>
+              <span id="profile-role" class="user-role-badge">student</span>
             </div>
           </div>
           
           <div class="profile-stats">
-            <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-default); padding-bottom: 0.5rem; font-size: 1.2rem;">Your Contributions Overview</h3>
-            <div class="stats-bar" style="grid-template-columns: repeat(2, 1fr);">
+            <h3>Your Contributions Overview</h3>
+            <div class="stats-bar profile-stats-bar">
               <div class="stat-card glass-card" style="background: rgba(17, 22, 39, 0.4);">
                 <div class="stat-icon" style="background: linear-gradient(135deg, #10B981, #059669);">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>

@@ -392,6 +392,45 @@ app.post('/api/rooms', authMiddleware, async (req, res) => {
   }
 });
 
+// Delete a room (protected — creator can delete own room, instructor can delete any)
+app.delete('/api/rooms/:id', authMiddleware, async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.id);
+    if (!room) return res.status(404).json({ error: 'Room not found' });
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const isCreator = room.createdBy.toString() === req.userId;
+    const isInstructor = user.role === 'instructor';
+    if (!isCreator && !isInstructor) {
+      return res.status(403).json({ error: 'You can only delete rooms you created' });
+    }
+
+    // Clean up runtime state
+    const roomId = room._id.toString();
+    runtime.participants.delete(roomId);
+    runtime.cursors.delete(roomId);
+    if (saveBuffer.has(roomId)) {
+      clearTimeout(saveBuffer.get(roomId));
+      saveBuffer.delete(roomId);
+    }
+
+    // Kick everyone out of the room
+    io.to(roomId).emit('room:deleted', { roomId });
+
+    await Room.findByIdAndDelete(req.params.id);
+
+    // Notify all clients to refresh their room lists
+    io.emit('rooms:update');
+
+    res.json({ message: 'Room deleted successfully' });
+  } catch (err) {
+    console.error('Delete room error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get room versions
 app.get('/api/rooms/:id/versions', authMiddleware, async (req, res) => {
   try {
