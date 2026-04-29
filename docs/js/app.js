@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
    CodeCollab - Main Application Logic v2 (Fixed)
    ═══════════════════════════════════════════════════════════════ */
-// const API_URL = "https://int-project-92ou.onrender.com";
-const API_URL = "http://localhost:3000";
+   const API_URL = "https://int-project-92ou.onrender.com";
+  //const API_URL = "http://localhost:3000";
 
 (() => {
   'use strict';
@@ -34,8 +34,8 @@ const API_URL = "http://localhost:3000";
   };
 
   // ─── Initialize Socket ─────────────────────────────────────
-  // const socket = io("https://int-project-92ou.onrender.com", {
-  const socket = io("http://localhost:3000", {
+  const socket = io("https://int-project-92ou.onrender.com", {
+  //const socket = io("http://localhost:3000", {
     auth: { token: localStorage.getItem('codecollab_token') }
   });
   state.socket = socket;
